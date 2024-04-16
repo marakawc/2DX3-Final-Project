@@ -1,23 +1,19 @@
+#import relevant libraries
 import serial
 import math
-
-import pandas as pd
-
 import numpy as np
 import open3d as o3d
 
-import pyvista as pv
-from pyvista import examples
                                                                                                                                                          
 #constants
 COM_NUMBER = "7"
 numberMeasurements = 32
-numberFrames = 1
+numberFrames = 3
 
 # change port as needed
 ser = serial.Serial(port="COM"+COM_NUMBER, baudrate=115200, bytesize=8, timeout=10, stopbits=serial.STOPBITS_ONE)
 
-# returns list [x, y]                                       
+# returns list [x, y, z]                                       
 def getXY(degrees, rawDistance, j):
     x = rawDistance * math.cos(math.radians(degrees))
     y = rawDistance * math.sin(math.radians(degrees))
@@ -63,41 +59,28 @@ def getData(successfulReadsToEndAt=numberMeasurements):
     print("Returning:", allData)
     return allData
     
-allXYCoords = []
+allXYCoords = [] #defined as a global array
 def collect(z):
-# main
     data = getData(numberMeasurements)
-    #allXYCoords = []
-
     degs = 0
     for i in range(numberMeasurements):
         x, y, zVar = getXY(degs, data[i][1], z)
         print(x, y, zVar)
-        allXYCoords.append([x, y, zVar])
-        degs += 11.25
+        allXYCoords.append([x, y, zVar]) #appends coordinates to global array
+        degs += 11.25 #increments degrees for next set of coordinates
 
     print(allXYCoords)
 
-#def main():
 for i in range(numberFrames):
-    j = i*100
-    collect(j)
+    j = i*100 #calculates the z value of a given coordinate
+    collect(j) #will create x,y,z coordinates and append to global list
     
 if __name__ == "__main__":
-    #Remember the goals of modularization
-    #   -- smaller problems, reuse, validation, debugging
-    #To simulate the data from the sensor lets create a new file with test data 
     f = open("demofile2dx.xyz", "w")    #create a new file for writing 
-    
-        #Test data: Lets make a rectangular prism as a point cloud in XYZ format
-        #   A simple prism would only require 8 vertices, however we
-        #   will sample the prism along its x-axis a total of 10x
-        #   4 vertices repeated 10x = 40 vertices
-        #   This for-loop generates our test data in xyz format
         
     for j in range(numberFrames*numberMeasurements):
-        f.write(str(int(allXYCoords[j][0])) + ' ' + str(int(allXYCoords[j][1])) + ' ' + str(int(allXYCoords[j][2])) + '\n')    #write x,0,0 (xyz) to file as p1
-    f.close()   #there should now be a file containing 40 vertex coordinates                               
+        f.write(str(int(allXYCoords[j][0])) + ' ' + str(int(allXYCoords[j][1])) + ' ' + str(int(allXYCoords[j][2])) + '\n')    #write x,y,z (xyz) to file as p1
+    f.close()   #there should now be a file containing all the coordinates collected                               
     
         #Read the test data in from the file we created        
     print("Read in the prism point cloud data (pcd)")
@@ -111,37 +94,30 @@ if __name__ == "__main__":
     print("Lets visualize the PCD: (spawns seperate interactive window)")
     o3d.visualization.draw_geometries([pcd])
 
-        #OK, good, but not great, lets add some lines to connect the vertices
-        #   For creating a lineset we will need to tell the packahe which vertices need connected
-        #   Remember each vertex actually contains one x,y,z coordinate
+        #   For creating a lineset we will need to tell the package which vertices need connected
+        #   Each vertex actually contains one x,y,z coordinate
 
         #Give each vertex a unique number
-    yz_slice_vertex = []
+    xy_slice_vertex = []
     for x in range(0,numberFrames*numberMeasurements):
-        yz_slice_vertex.append([x])
+        xy_slice_vertex.append([x])
 
-        #Define coordinates to connect lines in each yz slice        
+        #Define coordinates to connect lines in each xy slice        
     lines = []  
     for x in range(0,numberFrames*numberMeasurements, numberMeasurements):
         for i in range(numberMeasurements):
             if i==numberMeasurements-1:
-                lines.append([yz_slice_vertex[x+i], yz_slice_vertex[x]])
+                lines.append([xy_slice_vertex[x+i], xy_slice_vertex[x]])
             else:
-                lines.append([yz_slice_vertex[x+i], yz_slice_vertex[x+i+1]])
+                lines.append([xy_slice_vertex[x+i], xy_slice_vertex[x+i+1]])
                     
-        #lines.append([yz_slice_vertex[x], yz_slice_vertex[(x+1)%8]])
-
-        #Define coordinates to connect lines between current and next yz slice
-        
+        #Define coordinates to connect lines between current and next xy slice
     for x in range(0,numberFrames*numberMeasurements-numberMeasurements-1,numberMeasurements):
         for i in range(numberMeasurements):
-            lines.append([yz_slice_vertex[x+i], yz_slice_vertex[x+i+numberMeasurements]])
+            lines.append([xy_slice_vertex[x+i], xy_slice_vertex[x+i+numberMeasurements]])
 
         #This line maps the lines to the 3d coordinate vertices
     line_set = o3d.geometry.LineSet(points=o3d.utility.Vector3dVector(np.asarray(pcd.points)),lines=o3d.utility.Vector2iVector(lines))
 
         #Lets see what our point cloud data with lines looks like graphically       
-    o3d.visualization.draw_geometries([line_set])
-
-    #df1 = pd.DataFrame(allXYCoords)
-    #df1.to_excel("output.xlsx")  
+    o3d.visualization.draw_geometries([line_set]) 
